@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stroke Fast-Track</title>
+<meta name="description" content="Evaluación NIHSS y decisión terapéutica para ACV isquémico agudo">
+<meta name="theme-color" content="#010d1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stroke Fast-Track">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;600;700&display=swap');
+
+  :root {
+    --navy:    #010d1a;
+    --card:    rgba(4,30,66,0.88);
+    --accent:  #00c6ff;
+    --accent2: #0072ff;
+    --green:   #00e5a0;
+    --red:     #ff4d6d;
+    --orange:  #ff8c42;
+    --yellow:  #ffd166;
+    --text:    #e8f0fe;
+    --muted:   #7a9cc4;
+    --border:  rgba(0,198,255,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,198,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,198,255,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; top: -20%; left: 50%; transform: translateX(-50%);
+    width: 80vw; height: 60vh;
+    background: radial-gradient(ellipse, rgba(0,114,255,0.1) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 18px;
+    background: rgba(1,13,26,0.95);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+  }
+  .logo { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.15em; color: var(--accent); text-transform: uppercase; }
+  .logo span { color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .live-score {
+    font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--green);
+    display: flex; align-items: center; gap: 5px;
+    opacity: 0; transition: opacity 0.4s;
+  }
+  .live-score.on { opacity: 1; }
+  .live-score::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 8px var(--green);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .live-timer {
+    font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--yellow);
+    opacity: 0; transition: opacity 0.4s;
+  }
+  .live-timer.on { opacity: 1; }
+
+  /* ── PROGRESS ── */
+  .progress-wrap { position: relative; z-index: 10; height: 3px; background: rgba(255,255,255,0.05); }
+  .progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width 0.45s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 10px rgba(0,198,255,0.5);
+  }
+
+  /* ── MODULE LABEL ── */
+  .module-bar {
+    position: relative; z-index: 10;
+    display: flex; gap: 0;
+    background: rgba(1,13,26,0.8);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .module-pill {
+    flex: 1; text-align: center;
+    padding: 7px 4px;
+    font-family: 'DM Mono', monospace; font-size: 0.6rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted);
+    border-right: 1px solid var(--border);
+    transition: color 0.3s, background 0.3s;
+  }
+  .module-pill:last-child { border-right: none; }
+  .module-pill.active { color: var(--accent); background: rgba(0,198,255,0.07); }
+  .module-pill.done { color: var(--green); }
+
+  /* ── STEPS ── */
+  .step {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    padding: 22px 18px 100px;
+    max-width: 520px; margin: 0 auto; width: 100%;
+    animation: fadeUp 0.28s ease both;
+    min-height: calc(100vh - 130px);
+  }
+  .step.hidden { display: none !important; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+  .step-badge {
+    font-family: 'DM Mono', monospace; font-size: 0.68rem;
+    letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .step-badge::after { content:''; flex:1; height:1px; background: var(--border); }
+
+  h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.35; margin-bottom: 8px; }
+  .step-desc { font-size: 0.9rem; font-weight: 400; color: #9ab4d4; margin-bottom: 22px; line-height: 1.6; }
+
+  /* ── INPUT FIELDS ── */
+  .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; }
+  .field-label {
+    font-family: 'DM Mono', monospace; font-size: 0.68rem;
+    letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px;
+  }
+  .field-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 18px;
+  }
+  input[type="time"], input[type="text"], input[type="number"] {
+    background: transparent; border: none; outline: none;
+    color: var(--accent); font-family: 'DM Mono', monospace;
+    width: 100%;
+  }
+  input[type="time"] { font-size: 2.4rem; text-align: center; }
+  input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.3); }
+  input[type="text"], input[type="number"] { font-size: 1.3rem; }
+  input::placeholder { color: rgba(0,198,255,0.3); }
+
+  /* ── PRIMARY BUTTON ── */
+  .primary-btn {
+    width: 100%; padding: 18px; border-radius: 50px; border: none;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.95rem;
+    font-weight: 700; cursor: pointer; letter-spacing: 0.03em;
+    box-shadow: 0 4px 24px rgba(0,114,255,0.3);
+    transition: all 0.2s; margin-top: 8px;
+  }
+  .primary-btn:active { transform: scale(0.98); opacity: 0.9; }
+  .primary-btn:disabled { opacity: 0.35; pointer-events: none; }
+
+  /* ── OPTION BUTTONS (NIHSS) ── */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn {
+    display: flex; align-items: center; gap: 14px;
+    padding: 15px 16px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 0.93rem; font-weight: 400; cursor: pointer;
+    text-align: left; width: 100%; min-height: 60px;
+    transition: all 0.15s; -webkit-appearance: none; appearance: none;
+  }
+  .opt-btn:active, .opt-btn:hover {
+    background: rgba(0,114,255,0.18); border-color: var(--accent);
+    transform: translateX(4px);
+  }
+  .opt-score {
+    font-family: 'DM Mono', monospace; font-size: 1.05rem; font-weight: 500;
+    color: var(--accent); min-width: 22px; text-align: center; flex-shrink: 0;
+  }
+  .opt-label { flex: 1; line-height: 1.4; }
+  .opt-sub { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
+
+  /* ── CHECKLIST (rt-PA) ── */
+  .checklist { display: flex; flex-direction: column; gap: 0; }
+  .checklist-section-title {
+    font-family: 'DM Mono', monospace; font-size: 0.65rem;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); padding: 14px 0 8px;
+    border-bottom: 1px solid var(--border); margin-bottom: 2px;
+  }
+  .chk-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 13px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    cursor: pointer;
+  }
+  .chk-item:active { background: rgba(255,255,255,0.02); }
+  .chk-toggle {
+    margin-top: 2px; flex-shrink: 0;
+    width: 26px; height: 26px; border-radius: 8px;
+    border: 2px solid var(--border);
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.18s; font-size: 0.9rem;
+  }
+  .chk-toggle.checked { background: var(--red); border-color: var(--red); }
+  .chk-text { font-size: 0.9rem; line-height: 1.45; flex: 1; }
+  .chk-sublabel { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+  .checklist-summary {
+    position: sticky; bottom: 60px; z-index: 50;
+    margin: 0 -18px;
+    padding: 12px 18px;
+    background: rgba(1,13,26,0.97);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    backdrop-filter: blur(10px);
+  }
+  .chk-count { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--muted); }
+  .chk-count span { color: var(--red); font-weight: 600; }
+
+  /* ── RESULTS ── */
+  .decision-card {
+    border-radius: 20px; padding: 26px 22px; text-align: center;
+    margin-bottom: 18px; border: 1px solid;
+  }
+  .decision-card.go { background: rgba(0,229,160,0.08); border-color: var(--green); }
+  .decision-card.warn { background: rgba(255,140,66,0.08); border-color: var(--orange); }
+  .decision-card.stop { background: rgba(255,77,109,0.08); border-color: var(--red); }
+  .decision-icon { font-size: 2.8rem; margin-bottom: 10px; }
+  .decision-label {
+    font-size: 0.7rem; font-family: 'DM Mono', monospace;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .decision-card.go .decision-label { color: var(--green); }
+  .decision-card.warn .decision-label { color: var(--orange); }
+  .decision-card.stop .decision-label { color: var(--red); }
+  .decision-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+  .decision-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+
+  .score-hero {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 18px; padding: 22px; text-align: center; margin-bottom: 14px;
+  }
+  .score-number { font-family: 'DM Mono', monospace; font-size: 4.5rem; font-weight: 500; line-height: 1; margin-bottom: 4px; }
+  .score-cat { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .score-sub { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .meta-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px; text-align: center;
+  }
+  .mc-label { font-size: 0.65rem; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 5px; }
+  .mc-value { font-family: 'DM Mono', monospace; font-size: 1.1rem; color: var(--accent); font-weight: 500; }
+
+  .breakdown-label { font-size: 0.68rem; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px; }
+  .breakdown-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 18px; }
+  .bd-item { background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 8px 4px; text-align: center; }
+  .bd-id { font-size: 0.58rem; font-family: 'DM Mono', monospace; color: var(--muted); margin-bottom: 3px; }
+  .bd-score { font-family: 'DM Mono', monospace; font-size: 1rem; font-weight: 600; }
+  .bd-item.s0 .bd-score { color: var(--green); }
+  .bd-item.s1 .bd-score { color: var(--yellow); }
+  .bd-item.shi .bd-score { color: var(--red); }
+
+  .exclusions-box {
+    background: rgba(255,77,109,0.07); border: 1px solid rgba(255,77,109,0.3);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
+  }
+  .excl-title { font-size: 0.7rem; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; color: var(--red); margin-bottom: 10px; }
+  .excl-item { font-size: 0.83rem; color: var(--text); padding: 5px 0; border-bottom: 1px solid rgba(255,77,109,0.15); display: flex; gap: 8px; }
+  .excl-item::before { content: '✕'; color: var(--red); flex-shrink: 0; }
+  .excl-item:last-child { border-bottom: none; }
+
+  .copy-btn {
+    width: 100%; padding: 16px; border-radius: 50px;
+    border: 1px solid var(--accent2);
+    background: rgba(0,114,255,0.1);
+    color: var(--accent); font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    transition: all 0.2s; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .copy-btn:active { background: rgba(0,114,255,0.2); }
+
+  .restart-btn {
+    width: 100%; padding: 15px; border-radius: 50px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--muted); font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.2s;
+  }
+  .restart-btn:active { background: rgba(255,255,255,0.04); }
+
+  /* ── FOOTER ── */
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    padding: 12px 18px;
+    background: rgba(1,13,26,0.97);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    backdrop-filter: blur(12px);
+  }
+  .back-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 9px 18px; border-radius: 50px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+    cursor: pointer; display: flex; align-items: center; gap: 5px;
+    transition: all 0.2s;
+  }
+  .back-btn:active { border-color: var(--accent); color: var(--accent); }
+  .back-btn.invisible { visibility: hidden; pointer-events: none; }
+  .footer-info { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); text-align: right; }
+  .footer-info .fi-step { color: var(--accent); }
+
+  /* toast */
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--green); color: #000;
+    font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    padding: 10px 22px; border-radius: 50px;
+    opacity: 0; transition: all 0.3s; z-index: 999; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* ── DRUG SELECTOR ── */
+  .drug-selector-wrap {
+    background: rgba(0,229,160,0.06); border: 1px solid rgba(0,229,160,0.25);
+    border-radius: 18px; padding: 18px; margin-bottom: 14px;
+  }
+  .drug-selector-title {
+    font-size: 0.72rem; font-family: 'DM Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--green); margin-bottom: 4px;
+  }
+  .drug-selector-subtitle {
+    font-size: 0.75rem; color: var(--muted); margin-bottom: 14px; line-height: 1.4;
+  }
+  .drug-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .drug-pill {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 10px; text-align: center;
+    cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+    transition: all 0.18s; -webkit-appearance: none; appearance: none;
+  }
+  .drug-pill:active, .drug-pill.selected {
+    background: rgba(0,229,160,0.12); border-color: var(--green);
+  }
+  .dp-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+  .dp-sub { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+  .drug-pill.selected .dp-name { color: var(--green); }
+  .drug-pill.selected .dp-sub  { color: var(--green); opacity: 0.7; }
+
+  .drug-dose-card {
+    background: rgba(1,13,26,0.8); border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 12px; padding: 16px; animation: fadeUp 0.22s ease both;
+  }
+  .ddc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+  .ddc-name { font-size: 0.9rem; font-weight: 700; color: var(--green); }
+  .ddc-source { font-size: 0.62rem; font-family: 'DM Mono', monospace; color: var(--muted); text-align: right; line-height: 1.3; }
+  .ddc-dose { font-family: 'DM Mono', monospace; font-size: 1.15rem; color: var(--accent); font-weight: 500; margin-bottom: 2px; }
+  .ddc-via { font-size: 0.78rem; color: var(--muted); margin-bottom: 12px; }
+  .ddc-steps { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+  .ddc-step { display: flex; gap: 8px; font-size: 0.85rem; line-height: 1.45; }
+  .ddc-bullet { color: var(--accent); flex-shrink: 0; font-weight: 700; }
+  .ddc-note { font-size: 0.78rem; color: var(--muted); line-height: 1.5; padding-top: 10px; border-top: 1px solid var(--border); }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Stroke <span>/ Fast-Track</span></div>
+  <div class="header-right">
+    <div class="live-timer" id="live-timer">00:00</div>
+    <div class="live-score" id="live-score">NIHSS: 0</div>
+  </div>
+</header>
+
+<div class="progress-wrap">
+  <div class="progress-bar" id="progress-bar"></div>
+</div>
+
+<div class="module-bar">
+  <div class="module-pill active" id="mod-0">① Cronometría</div>
+  <div class="module-pill" id="mod-1">② NIHSS</div>
+  <div class="module-pill" id="mod-2">③ Trombólisis</div>
+  <div class="module-pill" id="mod-3">④ Decisión</div>
+</div>
+
+<!-- ════════════════════════════════════ -->
+<!-- STEP 0: CRONOMETRÍA                  -->
+<!-- ════════════════════════════════════ -->
+<div id="step-0" class="step">
+  <div class="step-badge">Módulo 1 — Cronometría</div>
+  <h2>Registro del Paciente</h2>
+  <p class="step-desc">Complete los datos antes de iniciar. Esta información se almacenará junto con el resultado clínico.</p>
+  <div class="field-group">
+    <div class="field-card">
+      <div class="field-label">DNI / Código de Paciente</div>
+      <input type="text" id="dni-input" placeholder="00000000" maxlength="12" inputmode="numeric">
+    </div>
+    <div class="field-card">
+      <div class="field-label">Hora LKW — Último Estado Conocido Bien (formato 24 h)</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px">
+        <select id="lkw-hh" style="background:transparent;border:none;outline:none;color:var(--accent);font-family:'DM Mono',monospace;font-size:2.2rem;text-align:center;-webkit-appearance:none;appearance:none;width:72px;cursor:pointer"></select>
+        <span style="font-family:'DM Mono',monospace;font-size:2.2rem;color:var(--accent);line-height:1">:</span>
+        <select id="lkw-mm" style="background:transparent;border:none;outline:none;color:var(--accent);font-family:'DM Mono',monospace;font-size:2.2rem;text-align:center;-webkit-appearance:none;appearance:none;width:72px;cursor:pointer"></select>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;background:rgba(255,209,102,0.08);border:1px solid rgba(255,209,102,0.25);border-radius:10px;padding:10px 14px;margin-bottom:14px">
+    <span style="font-size:1rem">🕐</span>
+    <span style="font-size:0.8rem;color:var(--yellow);font-family:'DM Mono',monospace">Hora del dispositivo: <strong id="device-time-display">--:--</strong> — verifique que sea correcta</span>
+  </div>
+  <p class="step-desc" style="margin-bottom:16px">⚠️ La hora LKW determina la ventana terapéutica para trombólisis (≤ 4.5 h) y trombectomía (≤ 24 h).</p>
+  <button class="primary-btn" onclick="startEval()">▶ Iniciar Evaluación NIHSS</button>
+</div>
+
+<!-- NIHSS items injected here -->
+<div id="nihss-steps"></div>
+
+<!-- ════════════════════════════════════ -->
+<!-- CHECKLIST TROMBÓLISIS               -->
+<!-- ════════════════════════════════════ -->
+<div id="step-checklist" class="step hidden">
+  <div class="step-badge">Módulo 3 — Trombólisis</div>
+  <h2>Contraindicaciones</h2>
+  <p class="step-desc">Marque <strong style="color:var(--red)">SÍ</strong> en cada criterio que aplique al paciente. Un solo criterio positivo contraindica la trombólisis.</p>
+
+  <div class="checklist" id="checklist-body"></div>
+
+  <div class="checklist-summary">
+    <div class="chk-count">Contraindicaciones: <span id="chk-count-num">0</span></div>
+    <button class="primary-btn" style="width:auto;padding:12px 24px;margin-top:0" onclick="goToResults()">Ver Decisión →</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════ -->
+<!-- RESULTS                              -->
+<!-- ════════════════════════════════════ -->
+<div id="step-results" class="step hidden">
+  <div class="step-badge">Módulo 4 — Decisión Clínica</div>
+  <h2>Resumen del Caso</h2>
+  <div id="results-body"></div>
+</div>
+
+<footer>
+  <button class="back-btn invisible" id="btn-back" onclick="goBack()">← Atrás</button>
+  <div class="footer-info">
+    <div class="fi-step" id="footer-step"></div>
+    <div id="footer-time"></div>
+  </div>
+</footer>
+
+<div class="toast" id="toast">✓ Copiado al portapapeles</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════
+const NIHSS_ITEMS = [
+  { id:'1a', label:'1a. Nivel de Conciencia', desc:'Evalúe la respuesta general. No use estímulos dolorosos si el paciente responde a estímulos menores.',
+    opts:[{s:0,t:'Alerta',sub:'Responde normalmente'},{s:1,t:'Somnoliento',sub:'Responde con estímulo menor'},{s:2,t:'Estuporoso',sub:'Requiere estímulo repetido o doloroso'},{s:3,t:'Comatoso',sub:'Solo reflejos o sin respuesta'}] },
+  { id:'1b', label:'1b. Orientación — Preguntas', desc:'Pregunte el mes actual y la edad. Solo primera respuesta. Sin pistas.',
+    opts:[{s:0,t:'Ambas correctas'},{s:1,t:'Una correcta',sub:'O disartria / intubado / barrera idiomática'},{s:2,t:'Ninguna correcta'}] },
+  { id:'1c', label:'1c. Órdenes Motoras', desc:'"Abra y cierre los ojos." — "Apriete y suelte la mano." Se puede gesticular, no guiar físicamente.',
+    opts:[{s:0,t:'Ambas correctas'},{s:1,t:'Una correcta'},{s:2,t:'Ninguna correcta'}] },
+  { id:'2', label:'2. Movimiento Ocular', desc:'Solo movimientos horizontales voluntarios o reflejos. Evalúe seguimiento horizontal.',
+    opts:[{s:0,t:'Normal'},{s:1,t:'Paresia parcial',sub:'Puede ser vencida voluntariamente'},{s:2,t:'Desviación forzada / paresia total',sub:'No puede ser vencida'}] },
+  { id:'3', label:'3. Campos Visuales', desc:'Confrontación en cuatro cuadrantes. En ceguera monocular, evalúe ojo sano.',
+    opts:[{s:0,t:'Sin pérdida visual'},{s:1,t:'Hemianopsia parcial'},{s:2,t:'Hemianopsia completa'},{s:3,t:'Hemianopsia bilateral / ceguera cortical'}] },
+  { id:'4', label:'4. Paresia Facial', desc:'Evalúe simetría de la mueca. En pacientes sin comprensión, observe respuesta al estímulo doloroso.',
+    opts:[{s:0,t:'Normal',sub:'Movimientos simétricos'},{s:1,t:'Paresia leve',sub:'Aplanamiento del pliegue nasolabial'},{s:2,t:'Paresia parcial',sub:'Parálisis total cara inferior'},{s:3,t:'Paresia completa',sub:'Ausencia cara superior e inferior'}] },
+  { id:'5a', label:'5a. Motor — Brazo Izquierdo', desc:'Brazo a 90° sentado / 45° acostado por 10 seg. Puntúe caída antes de 10 seg.',
+    opts:[{s:0,t:'Sin caída',sub:'Mantiene 10 seg'},{s:1,t:'Caída antes de 10 seg',sub:'No llega al soporte'},{s:2,t:'Algún esfuerzo contra gravedad',sub:'Cae antes de 10 seg'},{s:3,t:'Sin esfuerzo contra gravedad',sub:'Cae inmediatamente'},{s:4,t:'Sin movimiento'}] },
+  { id:'5b', label:'5b. Motor — Brazo Derecho', desc:'Brazo a 90° sentado / 45° acostado por 10 seg. Puntúe caída antes de 10 seg.',
+    opts:[{s:0,t:'Sin caída',sub:'Mantiene 10 seg'},{s:1,t:'Caída antes de 10 seg',sub:'No llega al soporte'},{s:2,t:'Algún esfuerzo contra gravedad',sub:'Cae antes de 10 seg'},{s:3,t:'Sin esfuerzo contra gravedad',sub:'Cae inmediatamente'},{s:4,t:'Sin movimiento'}] },
+  { id:'6a', label:'6a. Motor — Pierna Izquierda', desc:'Pierna a 30° en decúbito supino por 5 seg. Puntúe caída antes de 5 seg.',
+    opts:[{s:0,t:'Sin caída',sub:'Mantiene 5 seg'},{s:1,t:'Caída antes de 5 seg',sub:'No llega a la cama'},{s:2,t:'Algún esfuerzo contra gravedad',sub:'Cae antes de 5 seg'},{s:3,t:'Sin esfuerzo contra gravedad',sub:'Cae inmediatamente'},{s:4,t:'Sin movimiento'}] },
+  { id:'6b', label:'6b. Motor — Pierna Derecha', desc:'Pierna a 30° en decúbito supino por 5 seg. Puntúe caída antes de 5 seg.',
+    opts:[{s:0,t:'Sin caída',sub:'Mantiene 5 seg'},{s:1,t:'Caída antes de 5 seg',sub:'No llega a la cama'},{s:2,t:'Algún esfuerzo contra gravedad',sub:'Cae antes de 5 seg'},{s:3,t:'Sin esfuerzo contra gravedad',sub:'Cae inmediatamente'},{s:4,t:'Sin movimiento'}] },
+  { id:'7', label:'7. Ataxia de Extremidades', desc:'Prueba dedo-nariz y talón-rodilla bilateral. Puntúe si el error supera el déficit motor.',
+    opts:[{s:0,t:'Ausente'},{s:1,t:'En una extremidad'},{s:2,t:'En dos extremidades'}] },
+  { id:'8', label:'8. Sensibilidad', desc:'Evalúe con aguja. En bajo nivel de conciencia, puntúe solo si hay asimetría en la retirada al dolor.',
+    opts:[{s:0,t:'Normal',sub:'Sin pérdida'},{s:1,t:'Pérdida leve a moderada',sub:'Siente con menos intensidad'},{s:2,t:'Pérdida severa o total',sub:'No percibe tacto en cara, brazo o pierna'}] },
+  { id:'9', label:'9. Lenguaje / Afasia', desc:'Evalúe con descripción de lámina, nombrado de objetos y lectura.',
+    opts:[{s:0,t:'Normal',sub:'Sin afasia'},{s:1,t:'Afasia leve a moderada',sub:'Pérdida de fluidez sin limitar comprensión'},{s:2,t:'Afasia grave',sub:'Comunicación por inferencia'},{s:3,t:'Mudo / afasia global',sub:'Sin lenguaje utilizable ni comprensión'}] },
+  { id:'10', label:'10. Disartria', desc:'Evalúe articulación repitiendo palabras. No puntúe si hay afasia.',
+    opts:[{s:0,t:'Normal'},{s:1,t:'Leve a moderada',sub:'Arrastra palabras, puede entenderse'},{s:2,t:'Grave / mudo',sub:'Ininteligible o anártrico'}] },
+  { id:'11', label:'11. Extinción / Inatención', desc:'Estimulación simultánea bilateral (táctil, visual). Déficit previo por afasia no puntúa.',
+    opts:[{s:0,t:'Normal'},{s:1,t:'Inatención en una modalidad',sub:'Visual, táctil, auditiva o espacial'},{s:2,t:'Hemiinatención profunda',sub:'Extinción en más de una modalidad'}] }
+];
+
+const CHECKLIST_SECTIONS = [
+  {
+    title: 'Riesgo Hemorrágico',
+    items: [
+      { id:'c1', text:'Diátesis hemorrágica conocida', sub:'' },
+      { id:'c2', text:'Anticoagulantes orales (warfarina, NACO) con INR > 1.7 o tiempo de protrombina > 15 seg', sub:'' },
+      { id:'c3', text:'Heparina en las últimas 48 h con APTT elevado', sub:'' },
+      { id:'c4', text:'Plaquetas < 100.000 / mm³', sub:'' },
+      { id:'c5', text:'Hemorragia intracraneal previa (incluye trauma)', sub:'' },
+      { id:'c6', text:'Neoplasia intracraneal, malformación AV o aneurisma', sub:'' },
+      { id:'c7', text:'Cirugía mayor o trauma grave en los últimos 3 meses', sub:'' },
+      { id:'c8', text:'Cirugía o trauma intracraneal/espinal reciente', sub:'' },
+      { id:'c9', text:'Hemorragia GI o urinaria en las últimas 3 semanas', sub:'' },
+      { id:'c10', text:'Punción arterial en sitio no compresible en los últimos 7 días', sub:'' },
+    ]
+  },
+  {
+    title: 'Condición Clínica',
+    items: [
+      { id:'c11', text:'TA sistólica > 185 mmHg o diastólica > 110 mmHg (refractaria al tratamiento)', sub:'' },
+      { id:'c12', text:'ACV isquémico o traumatismo craneal grave en los últimos 3 meses', sub:'' },
+      { id:'c13', text:'Antecedente de ACV + diabetes mellitus combinados', sub:'Contraindicación relativa en ventana extendida' },
+      { id:'c14', text:'Infarto de miocardio reciente (últimas 3 semanas)', sub:'' },
+      { id:'c15', text:'Endocarditis bacteriana o pericarditis', sub:'' },
+      { id:'c16', text:'Pancreatitis aguda', sub:'' },
+    ]
+  },
+  {
+    title: 'Laboratorio e Imagen',
+    items: [
+      { id:'c17', text:'Glucemia < 50 mg/dl o > 400 mg/dl', sub:'' },
+      { id:'c18', text:'TC con signos de infarto extenso (hipodensidad > 1/3 territorio ACM)', sub:'' },
+      { id:'c19', text:'TC con hemorragia activa o subaracnoidea', sub:'' },
+    ]
+  },
+  {
+    title: 'Gravedad y Síntomas',
+    items: [
+      { id:'c20', text:'NIHSS > 25 (déficit neurológico severo)', sub:'Contraindicación relativa' },
+      { id:'c21', text:'Déficit leve con mejoría rápida espontánea', sub:'' },
+      { id:'c22', text:'Convulsión al inicio del ACV con déficit postictal residual', sub:'Si el déficit no es isquémico' },
+      { id:'c23', text:'Úlcera GI activa en los últimos 3 meses', sub:'' },
+      { id:'c24', text:'Neoplasia con riesgo hemorrágico elevado', sub:'' },
+    ]
+  }
+];
+
+// ═══════════════════════════════════════════════
+// BUILD TIME SELECTS (24h format)
+// ═══════════════════════════════════════════════
+function buildTimeSelects() {
+  const hh = document.getElementById('lkw-hh');
+  const mm = document.getElementById('lkw-mm');
+  for (let i=0; i<24; i++) {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = String(i).padStart(2,'0');
+    hh.appendChild(o);
+  }
+  for (let i=0; i<60; i++) {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = String(i).padStart(2,'0');
+    mm.appendChild(o);
+  }
+  // Default to current time
+  const now = new Date();
+  hh.value = now.getHours();
+  mm.value = now.getMinutes();
+  // Live device clock display
+  function updateClock() {
+    const n = new Date();
+    document.getElementById('device-time-display').textContent =
+      String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+  }
+  updateClock();
+  setInterval(updateClock, 5000);
+}
+
+function getLKWValue() {
+  const h = document.getElementById('lkw-hh').value;
+  const m = document.getElementById('lkw-mm').value;
+  if (h === null || m === null) return null;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+let S = {
+  dni: '', lkw: null, startTime: null,
+  scores: {}, checklist: {},
+  currentStep: 0, timerInterval: null
+};
+
+const TOTAL_NIHSS = NIHSS_ITEMS.length;
+// step 0 = cronometría, 1..15 = NIHSS, 16 = checklist, 17 = results
+const STEP_CHECKLIST = TOTAL_NIHSS + 1;
+const STEP_RESULTS   = TOTAL_NIHSS + 2;
+const TOTAL_SCREENS  = STEP_RESULTS;
+
+// ═══════════════════════════════════════════════
+// BUILD DOM
+// ═══════════════════════════════════════════════
+function buildNIHSS() {
+  const container = document.getElementById('nihss-steps');
+  NIHSS_ITEMS.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.id = `step-n${idx}`;
+    div.className = 'step hidden';
+    const opts = item.opts.map(o => `
+      <button class="opt-btn" onclick="recordNIHSS('${item.id}',${o.s},${idx})">
+        <span class="opt-score">${o.s}</span>
+        <span class="opt-label">${o.t}${o.sub ? `<div class="opt-sub">${o.sub}</div>` : ''}</span>
+      </button>`).join('');
+    div.innerHTML = `
+      <div class="step-badge">NIHSS — Ítem ${item.id}</div>
+      <h2>${item.label}</h2>
+      <p class="step-desc">${item.desc}</p>
+      <div class="options">${opts}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function buildChecklist() {
+  const body = document.getElementById('checklist-body');
+  CHECKLIST_SECTIONS.forEach(sec => {
+    const title = document.createElement('div');
+    title.className = 'checklist-section-title';
+    title.textContent = sec.title;
+    body.appendChild(title);
+
+    sec.items.forEach(item => {
+      S.checklist[item.id] = false;
+      const row = document.createElement('div');
+      row.className = 'chk-item';
+      row.id = `chk-row-${item.id}`;
+      row.onclick = () => toggleChk(item.id);
+      row.innerHTML = `
+        <div class="chk-toggle" id="chk-toggle-${item.id}"></div>
+        <div class="chk-text">${item.text}${item.sub ? `<div class="chk-sublabel">${item.sub}</div>` : ''}</div>`;
+      body.appendChild(row);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function showStep(n) {
+  // hide all
+  document.getElementById('step-0').classList.add('hidden');
+  for (let i=0; i<TOTAL_NIHSS; i++) document.getElementById(`step-n${i}`).classList.add('hidden');
+  document.getElementById('step-checklist').classList.add('hidden');
+  document.getElementById('step-results').classList.add('hidden');
+
+  S.currentStep = n;
+  updateModuleBar(n);
+  updateBackBtn(n);
+  updateFooter(n);
+
+  if (n === 0) {
+    document.getElementById('step-0').classList.remove('hidden');
+    setProgress(0);
+  } else if (n <= TOTAL_NIHSS) {
+    const el = document.getElementById(`step-n${n-1}`);
+    el.classList.remove('hidden');
+    el.style.animation='none'; el.offsetHeight; el.style.animation='';
+    setProgress(n / TOTAL_SCREENS);
+  } else if (n === STEP_CHECKLIST) {
+    document.getElementById('step-checklist').classList.remove('hidden');
+    updateChkCount();
+    setProgress(n / TOTAL_SCREENS);
+  } else {
+    document.getElementById('step-results').classList.remove('hidden');
+    renderResults();
+    setProgress(1);
+  }
+}
+
+function setProgress(f) {
+  document.getElementById('progress-bar').style.width = (f*100)+'%';
+}
+
+function updateModuleBar(n) {
+  const mods = [document.getElementById('mod-0'), document.getElementById('mod-1'),
+                document.getElementById('mod-2'), document.getElementById('mod-3')];
+  mods.forEach(m => { m.classList.remove('active','done'); });
+  if (n === 0) mods[0].classList.add('active');
+  else if (n <= TOTAL_NIHSS) { mods[0].classList.add('done'); mods[1].classList.add('active'); }
+  else if (n === STEP_CHECKLIST) { mods[0].classList.add('done'); mods[1].classList.add('done'); mods[2].classList.add('active'); }
+  else { mods[0].classList.add('done'); mods[1].classList.add('done'); mods[2].classList.add('done'); mods[3].classList.add('active'); }
+}
+
+function updateBackBtn(n) {
+  const btn = document.getElementById('btn-back');
+  if (n === 0) btn.classList.add('invisible');
+  else btn.classList.remove('invisible');
+}
+
+function updateFooter(n) {
+  const stepEl = document.getElementById('footer-step');
+  if (n === 0) stepEl.textContent = '';
+  else if (n <= TOTAL_NIHSS) stepEl.textContent = `NIHSS ${n}/${TOTAL_NIHSS}`;
+  else if (n === STEP_CHECKLIST) stepEl.textContent = 'Trombólisis — Contraindicaciones';
+  else stepEl.textContent = 'Decisión';
+}
+
+function goBack() {
+  if (S.currentStep > 0) showStep(S.currentStep - 1);
+}
+
+// ═══════════════════════════════════════════════
+// LOGIC
+// ═══════════════════════════════════════════════
+function startEval() {
+  const lkwVal = getLKWValue();
+  const dniVal = document.getElementById('dni-input').value.trim();
+  if (!lkwVal) { alert('Por favor seleccione la hora LKW.'); return; }
+  S.lkw = lkwVal;
+  S.dni = dniVal || 'Sin especificar';
+  S.startTime = new Date();
+  document.getElementById('live-score').classList.add('on');
+  document.getElementById('live-timer').classList.add('on');
+  startTimer();
+  showStep(1);
+}
+
+function startTimer() {
+  S.timerInterval = setInterval(() => {
+    const elapsed = Math.floor((new Date() - S.startTime) / 1000);
+    const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+    const s = String(elapsed%60).padStart(2,'0');
+    document.getElementById('live-timer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+function recordNIHSS(id, score, idx) {
+  S.scores[id] = score;
+  updateLiveScore();
+  const next = idx + 2;
+  // After last NIHSS item, decide if checklist is needed
+  if (next > TOTAL_NIHSS) {
+    if (shouldShowChecklist()) showStep(STEP_CHECKLIST);
+    else goToResults();
+  } else {
+    showStep(next);
+  }
+}
+
+function shouldShowChecklist() {
+  const total = nihssTotal();
+  const windowOk = lkwDeltaHours() <= 4.5;
+  return windowOk && total >= 4 && total <= 25;
+}
+
+function updateLiveScore() {
+  document.getElementById('live-score').textContent = `NIHSS: ${nihssTotal()}`;
+}
+
+function nihssTotal() {
+  return Object.values(S.scores).reduce((a,b)=>a+b,0);
+}
+
+function lkwDeltaHours() {
+  if (!S.lkw) return 999;
+  const now = new Date();
+  const [h,m] = S.lkw.split(':').map(Number);
+  const lkwDate = new Date(now); lkwDate.setHours(h,m,0,0);
+  if (lkwDate > now) lkwDate.setDate(lkwDate.getDate()-1);
+  return (now - lkwDate) / 3600000;
+}
+
+// Checklist
+function toggleChk(id) {
+  S.checklist[id] = !S.checklist[id];
+  const toggle = document.getElementById(`chk-toggle-${id}`);
+  if (S.checklist[id]) { toggle.classList.add('checked'); toggle.textContent='✕'; }
+  else { toggle.classList.remove('checked'); toggle.textContent=''; }
+  updateChkCount();
+}
+
+function updateChkCount() {
+  const count = Object.values(S.checklist).filter(Boolean).length;
+  document.getElementById('chk-count-num').textContent = count;
+}
+
+function chkTotal() { return Object.values(S.checklist).filter(Boolean).length; }
+
+function goToResults() { showStep(STEP_RESULTS); }
+
+// ═══════════════════════════════════════════════
+// RESULTS & CDSS
+// ═══════════════════════════════════════════════
+function renderResults() {
+  clearInterval(S.timerInterval);
+
+  const total = nihssTotal();
+  const deltaH = lkwDeltaHours();
+  const excl = chkTotal();
+  const nihssOk = total >= 4 && total <= 25;
+
+  // CDSS Decision
+  let decision;
+  const isEligible = (deltaH <= 4.5 && nihssOk && excl === 0);
+  if (isEligible) {
+    decision = {
+      cls: 'go', icon: '✅',
+      label: 'Candidato a Trombólisis IV',
+      title: 'TROMBÓLISIS INDICADA',
+      desc: 'El paciente está dentro de la ventana de 4.5 h, presenta NIHSS elegible y no tiene contraindicaciones detectadas. Confirme con el equipo de neurología antes de proceder.'
+    };
+  } else if (deltaH <= 4.5 && nihssOk && excl > 0) {
+    decision = {
+      cls: 'stop', icon: '🚫',
+      label: 'Contraindicación Detectada',
+      title: 'TROMBÓLISIS CONTRAINDICADA',
+      desc: `Se detectaron ${excl} criterio(s) de exclusión. La trombólisis IV está contraindicada. Evalúe trombectomía mecánica si existe oclusión de gran vaso.`
+    };
+  } else if (deltaH > 4.5 && deltaH <= 24) {
+    decision = {
+      cls: 'warn', icon: '⚠️',
+      label: 'Ventana Extendida',
+      title: 'EVALUAR TROMBECTOMÍA MECÁNICA',
+      desc: `Tiempo desde LKW: ${formatDelta(deltaH)}. Fuera de la ventana para trombólisis. Evalúe elegibilidad para trombectomía mecánica (criterios DAWN/DEFUSE-3) según neuroimagen de perfusión.`
+    };
+  } else if (!nihssOk && total < 4) {
+    decision = {
+      cls: 'warn', icon: '⚡',
+      label: 'Déficit Leve',
+      title: 'NIHSS < 4 — Déficit Menor',
+      desc: 'El déficit neurológico es leve. Evaluar individualmente. Considerar trombólisis si hay síntomas inhabilitantes. Internación y monitoreo neurológico obligatorio.'
+    };
+  } else if (total > 25) {
+    decision = {
+      cls: 'stop', icon: '🛑',
+      label: 'Déficit Severo',
+      title: 'NIHSS > 25 — Alto Riesgo Hemorrágico',
+      desc: 'Déficit neurológico severo. La trombólisis presenta contraindicación relativa. Considerar trombectomía mecánica urgente si hay oclusión de gran vaso confirmada.'
+    };
+  } else {
+    decision = {
+      cls: 'stop', icon: '⛔',
+      label: 'Fuera de Ventana',
+      title: 'Ventana Terapéutica Cerrada',
+      desc: `Tiempo desde LKW: ${formatDelta(deltaH)}. Más de 24 horas. No indicada trombólisis ni trombectomía de rutina. Manejo médico del ACV isquémico.`
+    };
+  }
+
+  // Severity
+  let cat, catColor;
+  if (total === 0)       { cat='Sin déficit';      catColor='var(--green)'; }
+  else if (total <= 4)   { cat='Leve';             catColor='var(--green)'; }
+  else if (total <= 15)  { cat='Moderado';         catColor='var(--yellow)'; }
+  else if (total <= 20)  { cat='Moderado-Severo';  catColor='var(--orange)'; }
+  else                   { cat='Severo';           catColor='var(--red)'; }
+
+  // Time
+  const elapsedMs = new Date() - S.startTime;
+  const em = Math.floor(elapsedMs/60000), es = Math.floor((elapsedMs%60000)/1000);
+  const elapsed = em>0 ? `${em}m ${es}s` : `${es}s`;
+
+  // Exclusions list
+  let exclHTML = '';
+  if (excl > 0) {
+    const activeItems = CHECKLIST_SECTIONS.flatMap(s=>s.items).filter(i=>S.checklist[i.id]);
+    exclHTML = `
+      <div class="exclusions-box">
+        <div class="excl-title">Contraindicaciones Activas (${excl})</div>
+        ${activeItems.map(i=>`<div class="excl-item">${i.text}</div>`).join('')}
+      </div>`;
+  }
+
+  // Drug selector block (only if eligible)
+  const drugHTML = isEligible ? `
+    <div class="drug-selector-wrap" id="drug-selector-wrap">
+      <div class="drug-selector-title">Seleccionar agente trombolítico</div>
+      <div class="drug-selector-subtitle">Guías AHA/ASA 2026 — ambos agentes recomendados (Clase I, Nivel A)</div>
+      <div class="drug-pills">
+        <button class="drug-pill" id="pill-alteplase" onclick="selectDrug('alteplase')">
+          <span class="dp-name">Alteplase</span>
+          <span class="dp-sub">rt-PA</span>
+        </button>
+        <button class="drug-pill" id="pill-tenecteplase" onclick="selectDrug('tenecteplase')">
+          <span class="dp-name">Tenecteplasa</span>
+          <span class="dp-sub">TNK</span>
+        </button>
+      </div>
+      <div class="drug-dose-card hidden" id="drug-dose-card"></div>
+    </div>` : '';
+
+  // Breakdown
+  const bds = NIHSS_ITEMS.map(item=>{
+    const s = S.scores[item.id] ?? '–';
+    let cls = s===0?'s0':s>=3?'shi':'s1';
+    return `<div class="bd-item ${cls}"><div class="bd-id">${item.id}</div><div class="bd-score">${s}</div></div>`;
+  }).join('');
+
+  document.getElementById('results-body').innerHTML = `
+    <div class="decision-card ${decision.cls}">
+      <div class="decision-icon">${decision.icon}</div>
+      <div class="decision-label">${decision.label}</div>
+      <div class="decision-title">${decision.title}</div>
+      <div class="decision-desc">${decision.desc}</div>
+    </div>
+
+    ${drugHTML}
+
+    <div class="score-hero">
+      <div class="score-number" style="color:${catColor}">${total}</div>
+      <div class="score-cat" style="color:${catColor}">${cat}</div>
+      <div class="score-sub">Escala NIHSS (máx. 42)</div>
+    </div>
+
+    <div class="meta-grid">
+      <div class="meta-card"><div class="mc-label">Paciente</div><div class="mc-value" style="font-size:0.9rem">${S.dni}</div></div>
+      <div class="meta-card"><div class="mc-label">LKW</div><div class="mc-value">${S.lkw}</div></div>
+      <div class="meta-card"><div class="mc-label">Tiempo LKW</div><div class="mc-value">${formatDelta(deltaH)}</div></div>
+      <div class="meta-card"><div class="mc-label">T° Evaluación</div><div class="mc-value">${elapsed}</div></div>
+    </div>
+
+    ${exclHTML}
+
+    <div class="breakdown-label">Desglose NIHSS por ítem</div>
+    <div class="breakdown-grid">${bds}</div>
+
+    <button class="copy-btn" onclick="copyResumen()">📋 Copiar Resumen</button>
+    <button class="restart-btn" onclick="restartApp()">↺ Nueva Evaluación</button>
+  `;
+}
+
+// ─── Drug selector ───────────────────────────
+const DRUG_DOSES = {
+  alteplase: {
+    name: 'Alteplase (rt-PA)',
+    dose: '0.9 mg/kg — máximo 90 mg',
+    via: 'Vía IV',
+    steps: [
+      '10% de la dosis total: bolo IV en 1–2 minutos',
+      '90% restante: infusión IV continua durante 60 minutos',
+      'No exceder 90 mg en ningún caso'
+    ],
+    note: 'Preparación: disolver en agua para inyectables. Monitorizar TA y estado neurológico cada 15 min durante la infusión.',
+    source: 'AHA/ASA 2026 — Clase I / Nivel A'
+  },
+  tenecteplase: {
+    name: 'Tenecteplasa (TNK)',
+    dose: '0.25 mg/kg — máximo 25 mg',
+    via: 'Bolo IV único',
+    steps: [
+      'Dosis única: bolo IV en 5–10 segundos',
+      'No requiere bomba de infusión',
+      '⚠️ Dosis ACV (0.25 mg/kg) ≠ dosis IAM (0.5 mg/kg) — no confundir'
+    ],
+    note: 'Peso estimado aceptable para evitar demoras. Ventaja en pacientes con oclusión de gran vaso (LVO). Preferida por las guías ESO 2023 en contexto LVO.',
+    source: 'AHA/ASA 2026 — Clase I / Nivel A'
+  }
+};
+
+function selectDrug(drug) {
+  // Toggle pills
+  document.querySelectorAll('.drug-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById(`pill-${drug}`).classList.add('selected');
+
+  const d = DRUG_DOSES[drug];
+  const card = document.getElementById('drug-dose-card');
+  card.innerHTML = `
+    <div class="ddc-header">
+      <span class="ddc-name">${d.name}</span>
+      <span class="ddc-source">${d.source}</span>
+    </div>
+    <div class="ddc-dose">${d.dose}</div>
+    <div class="ddc-via">${d.via}</div>
+    <div class="ddc-steps">
+      ${d.steps.map(s=>`<div class="ddc-step"><span class="ddc-bullet">→</span>${s}</div>`).join('')}
+    </div>
+    <div class="ddc-note">${d.note}</div>
+  `;
+  card.classList.remove('hidden');
+  S.selectedDrug = drug;
+}
+
+function formatDelta(h) {
+  const hh = Math.floor(h), mm = Math.round((h-hh)*60);
+  return `${hh}h ${mm}m`;
+}
+
+// ═══════════════════════════════════════════════
+// COPY SUMMARY
+// ═══════════════════════════════════════════════
+function copyResumen() {
+  const total = nihssTotal();
+  const deltaH = lkwDeltaHours();
+  const excl = chkTotal();
+  const activeItems = CHECKLIST_SECTIONS.flatMap(s=>s.items).filter(i=>S.checklist[i.id]);
+  const detalle = NIHSS_ITEMS.map(it=>`  ${it.id}: ${S.scores[it.id]??'-'}`).join('\n');
+  const exclText = activeItems.length > 0 ? '\nCONTRAINDICACIONES:\n' + activeItems.map(i=>`  • ${i.text}`).join('\n') : '\nSin contraindicaciones detectadas.';
+  const texto = `STROKE FAST-TRACK — Resumen Clínico
+====================================
+Paciente:       ${S.dni}
+LKW:            ${S.lkw}
+Tiempo LKW:     ${formatDelta(deltaH)}
+Fecha/Hora:     ${new Date().toLocaleString('es-AR')}
+
+NIHSS TOTAL:    ${total}
+Desglose:
+${detalle}
+${exclText}
+
+DECISIÓN: Ver pantalla de resultado o contactar neurología.
+(Generado con Stroke Fast-Track App)`;
+
+  navigator.clipboard.writeText(texto).then(()=>{
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2500);
+  }).catch(()=>alert(texto));
+}
+
+// ═══════════════════════════════════════════════
+// RESTART
+// ═══════════════════════════════════════════════
+function restartApp() {
+  clearInterval(S.timerInterval);
+  S = { dni:'', lkw:null, startTime:null, scores:{}, checklist:{}, currentStep:0, timerInterval:null };
+  document.querySelectorAll('.chk-toggle').forEach(el=>{ el.classList.remove('checked'); el.textContent=''; });
+  document.getElementById('live-score').classList.remove('on');
+  document.getElementById('live-timer').classList.remove('on');
+  document.getElementById('live-score').textContent = 'NIHSS: 0';
+  document.getElementById('live-timer').textContent = '00:00';
+  const now = new Date();
+  document.getElementById('lkw-hh').value = now.getHours();
+  document.getElementById('lkw-mm').value = now.getMinutes();
+  document.getElementById('dni-input').value = '';
+  showStep(0);
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+buildNIHSS();
+buildChecklist();
+buildTimeSelects();
+showStep(0);
+
+// ── PWA: Register Service Worker ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(reg => console.log('SW registrado:', reg.scope))
+      .catch(err => console.log('SW error:', err));
+  });
+}
+</script>
+</body>
+</html>
