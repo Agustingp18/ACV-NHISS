@@ -1,6 +1,6 @@
 {
-  "name": "Stroke Fast-Track",
-  "short_name": "StrokeFT",
+  "name": "NIHSS ACV",
+  "short_name": "NIHSS ACV",
   "description": "Evaluación NIHSS y decisión terapéutica para ACV isquémico agudo",
   "start_url": "./index.html",
   "display": "standalone",
